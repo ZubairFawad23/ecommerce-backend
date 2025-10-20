@@ -92,3 +92,19 @@ class IdempotencyKey(models.Model):
 
     def __str__(self):
         return self.key
+
+
+class PriceHistory(models.Model):
+    """Historical price samples per product."""
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='price_history')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['tenant', 'product', 'recorded_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.product.title} - {self.price}"
