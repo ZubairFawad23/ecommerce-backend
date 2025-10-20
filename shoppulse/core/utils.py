@@ -3,15 +3,18 @@ import time
 import uuid
 import hashlib
 from django.db import IntegrityError, transaction
-from django.db.models import JSONField # Import needed for type hinting/clarity
+from django.db import models 
 
-# Assuming core.models is accessible
 from core.models import IdempotencyKey 
 
 
 def generate_request_hash(data: dict) -> str:
-    """Generates a consistent hash of the request data for validation."""
-    # Use default=str for complex types like Decimal or UUIDs to ensure hash consistency
+    """
+    Generates a consistent hash of the request data for validation.
+    Ensures that complex data types (Decimal, UUID) are safely and consistently 
+    serialized to a string before hashing, making the hash repeatable for identical payloads.
+    """
+    # Use default=str and sort_keys=True for consistent byte representation.
     data_string = json.dumps(data, sort_keys=True, default=str)
     return hashlib.sha256(data_string.encode('utf-8')).hexdigest()
 
@@ -28,8 +31,10 @@ def handle_idempotency(idempotency_key: str, request_data: dict):
     try:
         existing_key = IdempotencyKey.objects.get(key=idempotency_key)
         
-        # Optionally, verify payload hash to ensure client isn't using the key for different data
+        # Verify payload hash to ensure client isn't using the key for different data
         current_hash = generate_request_hash(request_data)
+        
+        # CRITICAL FIX: If the payload is identical, return the HIT status.
         if current_hash != existing_key.metadata.get('request_hash'):
              return {'error': 'Idempotency key reused with different payload'}, 'CONFLICT'
         
@@ -58,7 +63,7 @@ def handle_idempotency(idempotency_key: str, request_data: dict):
 
 def finalize_idempotency(idempotency_key_instance, response_summary: dict):
     """Updates the IdempotencyKey with the final response/summary after success."""
-    # Check if instance is an IdempotencyKey object (not just a dict of metadata)
+    # Check if instance is an IdempotencyKey object
     if idempotency_key_instance and isinstance(idempotency_key_instance, models.Model): 
         # Set the final status and response metadata
         response_summary['status'] = 'COMPLETED'
